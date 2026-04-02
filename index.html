@@ -242,6 +242,24 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit}
 .result-status.fail{color:var(--orange)}
 .result-status.error{color:var(--red)}
 .result-tip{font-size:.75rem;color:var(--gray-text);margin-top:2px}
+/* Word-level breakdown */
+.breakdown-label{font-size:.72rem;color:#9ca3af;margin-top:8px;text-align:center;letter-spacing:.3px}
+.word-breakdown{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;justify-content:center}
+.word-chip{padding:3px 10px;border-radius:14px;font-size:.82rem;font-weight:600;letter-spacing:.2px;display:inline-flex;align-items:center;gap:3px}
+.word-chip.recognized{background:#d1fae5;color:#065f46;border:1.5px solid #34d399}
+.word-chip.missed{background:#fee2e2;color:#991b1b;border:1.5px solid #f87171}
+.word-chip.keyword{border-width:2px;border-style:solid}
+.word-chip.recognized.keyword{border-color:#059669;box-shadow:0 0 0 2px #a7f3d0}
+.word-chip.missed.keyword{border-color:#dc2626;box-shadow:0 0 0 2px #fecaca}
+.chip-kw{font-size:.58rem;vertical-align:super;margin-left:1px;opacity:.8}
+/* Missed words summary on complete screen */
+.missed-summary{background:#fff8f0;border:1.5px solid #fed7aa;border-radius:12px;padding:14px 16px;margin:14px 0;text-align:left}
+.missed-summary h3{font-size:.88rem;color:#92400e;margin:0 0 10px;font-weight:700}
+.missed-word-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.missed-word-badge{background:#fee2e2;color:#991b1b;border:1.5px solid #f87171;border-radius:12px;padding:2px 10px;font-size:.82rem;font-weight:700;min-width:80px;text-align:center}
+.missed-word-bar-wrap{flex:1;background:#f3f4f6;border-radius:6px;height:10px;overflow:hidden}
+.missed-word-bar{background:linear-gradient(90deg,#f87171,#ef4444);height:100%;border-radius:6px;transition:width .5s}
+.missed-word-count{font-size:.72rem;color:#6b7280;min-width:40px;text-align:right}
 
 .action-row{display:flex;gap:10px;margin-top:10px}
 .btn-next{
@@ -453,6 +471,8 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit}
     <div class="result-area" id="result-area">
       <div class="result-heard" id="result-heard"></div>
       <div class="result-status" id="result-status"></div>
+      <div class="breakdown-label" id="breakdown-label"></div>
+      <div class="word-breakdown" id="word-breakdown"></div>
       <div class="result-tip" id="result-tip"></div>
     </div>
 
@@ -474,6 +494,10 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit}
     <div class="score-num" id="score-num">—</div>
     <div class="score-label">スコア（成功フェーズ / 全フェーズ）</div>
   </div>
+  <div class="missed-summary" id="missed-summary" style="display:none">
+    <h3>⚠️ 認識されにくかった単語（要練習）</h3>
+    <div id="missed-list"></div>
+  </div>
   <div class="expressions-summary">
     <h3>📚 練習した表現</h3>
     <div id="expr-list"></div>
@@ -486,8 +510,9 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit}
 
 <script>
 /* =====================================================
-   SCENARIO DATA
-   Based on corpus MI analysis (Effect≥2, JHS vocab)
+   SCENARIO DATA — revised
+   All targets: 1 sentence, ≤8 words, corpus-backed
+   Effect≥2, freq≥2, North American English
    ===================================================== */
 const SCENARIOS = [
 {
@@ -497,38 +522,38 @@ const SCENARIOS = [
     situation:"A 58-year-old male found clutching his chest in a parking lot. He appears pale and diaphoretic.",
     situationJa:"駐車場で胸を押さえている58歳男性。顔色不良・冷汗あり。通行人が119番通報。"},
   phases:[
-    {name:"Initial Contact",nameJa:"初期接触",hint:"患者の意識・反応を確認する",
-     target:"Can you hear me?",keywords:["hear"],threshold:1,
+    {name:"Initial Contact",nameJa:"初期接触",hint:"患者の意識・反応を声で確認する",
+     target:"Can you hear me?",keywords:["hear"],threshold:1.0,
      patientResponse:"Yeah, I can hear you. Oh God, please help me — something's really wrong.",
-     note:"Effect=6.41 freq=53",tip:"最重要の意識確認表現"},
-    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"何が起きているか・どこが痛いか聞く",
-     target:"Tell me what's wrong. Where is the pain?",keywords:["tell","pain","where"],threshold:0.6,
-     patientResponse:"It's my chest — it feels like someone's sitting right on it. This awful squeezing pressure that won't let up.",
-     note:"Effect=6.61 freq=114",tip:"tell meはコーパス最頻出"},
-    {name:"Pain Scale",nameJa:"痛みの評価",hint:"痛みの程度を0〜10で評価する",
-     target:"On a scale of zero to ten, how bad is the pain?",keywords:["scale","ten","bad","pain"],threshold:0.5,
-     patientResponse:"I'd say an eight, maybe a nine. Honestly it's the worst pain I've ever felt in my life.",
-     note:"Effect=7.69 freq=41",tip:"how badは高Effect表現"},
-    {name:"History",nameJa:"病歴聴取",hint:"いつ始まったか・薬を飲んでいるか確認する",
-     target:"When did this start? Do you take any medications?",shortTarget:"When did this start?",keywords:["when","start"],threshold:0.6,
-     patientResponse:"Maybe twenty minutes ago — it came on really fast. Yeah, I'm on aspirin and a blood pressure medication. Lisinopril, I think.",
-     note:"Effect=6.92 freq=68",tip:"when didは高頻度・高Effect"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"血圧・心拍数を測ることを伝える",
-     target:"Let me check your blood pressure and heart rate.",keywords:["blood","pressure","heart","rate"],threshold:0.5,
-     patientResponse:"[holds arm out] Go ahead, do what you need to do.",
-     note:"Effect=7.21 freq=71",tip:"blood pressureは最重要バイタル表現"},
+     note:"Effect=6.41 freq=53",tip:"最重要の意識確認。コーパス頻出第3位"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"どこが痛いか場所を聞く",
+     target:"Where is the pain?",keywords:["pain","where"],threshold:0.8,
+     patientResponse:"My chest — it feels like someone's sitting right on it. This awful squeezing pressure.",
+     note:"Effect=6.61 freq=114",tip:"1文・5語。tell meより短く直接的"},
+    {name:"Pain Scale",nameJa:"痛みの評価",hint:"痛みの程度を聞く",
+     target:"How bad is the pain?",keywords:["bad","pain"],threshold:0.8,
+     patientResponse:"Maybe an eight or nine. Honestly the worst pain I've ever felt.",
+     note:"Effect=7.69 freq=41",tip:"how badはEffect7.69。scale of tenより短い"},
+    {name:"History",nameJa:"病歴聴取",hint:"いつ症状が始まったか確認する",
+     target:"When did this start?",keywords:["when","start"],threshold:0.8,
+     patientResponse:"About twenty minutes ago — came on really fast.",
+     note:"Effect=6.92 freq=68",tip:"when didは高Effect・高頻度。最短の発症確認"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"血圧を測ることを伝える",
+     target:"Let me check your blood pressure.",keywords:["blood","pressure"],threshold:0.8,
+     patientResponse:"[holds arm out] Sure, go ahead.",
+     note:"Effect=7.21 freq=71",tip:"blood pressureはEffect7.21 freq=71の核心バイタル"},
     {name:"Instructions",nameJa:"指示",hint:"じっとして、ゆっくり呼吸するよう指示する",
-     target:"Try to stay still and breathe slowly.",keywords:["stay","still","breathe"],threshold:0.6,
-     patientResponse:"Okay, I'll try my best. Is it my heart? Am I having a heart attack?",
-     note:"Effect=6.30 freq=38",tip:"stay stillは指示の基本表現"},
-    {name:"Reassurance",nameJa:"安心づけ",hint:"大丈夫だと安心させ、適切に対応していることを伝える",
-     target:"You're in good hands. We're taking care of you.",keywords:["hands","care"],threshold:0.8,
-     patientResponse:"Thank you so much. Please just get me to the hospital as fast as you can.",
-     note:"Effect=6.85 freq=44",tip:"好感度の高い安心表現"},
+     target:"Stay still and breathe slowly.",keywords:["stay","still","breathe"],threshold:0.6,
+     patientResponse:"Okay. Is it my heart?",
+     note:"Effect=6.30 freq=38",tip:"stay still + breatheの組み合わせ。6語"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"適切に対応していることを伝える",
+     target:"You're in good hands.",keywords:["hands","good"],threshold:0.8,
+     patientResponse:"Thank you. Please hurry.",
+     note:"Effect=6.85 freq=44",tip:"4語の最短安心表現。北米で広く使われる"},
     {name:"Transport",nameJa:"搬送",hint:"病院へ搬送することを伝える",
-     target:"We're taking you to the hospital now. You'll be okay.",keywords:["hospital","taking","okay"],threshold:0.5,
-     patientResponse:"Okay. Thank you — I really appreciate everything you're doing.",
-     note:"Effect=5.90 freq=52",tip:"搬送告知の標準表現"}
+     target:"We're taking you to the hospital now.",keywords:["hospital","now"],threshold:0.8,
+     patientResponse:"Okay. Thank you for everything.",
+     note:"Effect=5.90 freq=52",tip:"搬送告知の標準表現。7語"}
   ]
 },
 {
@@ -538,38 +563,38 @@ const SCENARIOS = [
     situation:"A 45-year-old female in acute respiratory distress. She is sitting upright and struggling to breathe.",
     situationJa:"起座位で呼吸困難の45歳女性。喘息の既往あり。救急要請。"},
   phases:[
-    {name:"Initial Contact",nameJa:"初期接触",hint:"反応と呼吸状態を確認する",
-     target:"Can you hear me? Try to stay calm.",keywords:["hear","calm"],threshold:0.8,
-     patientResponse:"[gasping] Yeah... I can hear you. I just — I can't catch my breath at all.",
-     note:"Effect=6.41 freq=53",tip:"try to stay calmは安定化の重要表現"},
-    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"呼吸の問題の内容を確認する",
-     target:"Tell me what happened. How long have you had trouble breathing?",keywords:["tell","long","breathing","trouble"],threshold:0.5,
-     patientResponse:"[catching breath between words] About thirty minutes. It just keeps getting worse no matter what I do.",
-     note:"Effect=7.62 freq=56",tip:"how longは発症時間確認の核心表現"},
-    {name:"Pain Scale",nameJa:"呼吸困難度評価",hint:"呼吸の苦しさを0〜10で評価する",
-     target:"On a scale of zero to ten, how bad is your breathing?",keywords:["scale","ten","breathing","bad"],threshold:0.5,
-     patientResponse:"[gasping] I'd say a seven. It's really hard to talk right now.",
-     note:"Effect=7.69 freq=41",tip:"呼吸困難にもscaleが有効"},
-    {name:"History",nameJa:"病歴聴取",hint:"喘息・アレルギー・薬の確認",
-     target:"Do you have asthma? Any allergies?",keywords:["asthma","allerg"],threshold:0.6,
-     patientResponse:"[gasps] Yeah, I've got asthma. I have an albuterol inhaler — I already used it twice but it's just not working today.",
-     note:"Effect=6.50 freq=55",tip:"アレルギーは必須確認項目"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"酸素飽和度と呼吸音を確認する",
-     target:"I'm going to check your oxygen level and listen to your lungs.",keywords:["oxygen","listen","lungs"],threshold:0.5,
-     patientResponse:"[nods, still struggling] Okay. Just — please be quick about it.",
-     note:"Effect=7.10 freq=48",tip:"oxygen levelは呼吸評価の核心"},
-    {name:"Instructions",nameJa:"指示",hint:"リップパースドで呼吸するよう指示する",
-     target:"Try to breathe slowly. Breathe in through your nose, out through your mouth.",keywords:["breathe","nose","mouth"],threshold:0.5,
-     patientResponse:"[concentrating, following along] Okay... in through the nose... and out through the mouth...",
-     note:"Effect=6.30 freq=38",tip:"呼吸指示の基本表現"},
-    {name:"Reassurance",nameJa:"安心づけ",hint:"酸素を投与しながら安心させる",
-     target:"I'm putting oxygen on you. You're doing great. Keep breathing.",keywords:["oxygen","great","breathing"],threshold:0.5,
-     patientResponse:"[breathing slightly easier] Thank you. That actually is a little better.",
-     note:"Effect=6.20 freq=35",tip:"doing greatは励ましの定番表現"},
+    {name:"Initial Contact",nameJa:"初期接触",hint:"反応を確認し、落ち着かせる",
+     target:"Can you hear me? Stay calm.",keywords:["hear","calm"],threshold:0.8,
+     patientResponse:"[gasping] Yeah — I can't catch my breath at all.",
+     note:"Effect=6.41 freq=53",tip:"5語。hear me + stay calmの最短組み合わせ"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"どれくらい続いているか確認する",
+     target:"How long have you had trouble breathing?",keywords:["long","trouble","breathing"],threshold:0.6,
+     patientResponse:"[catching breath] About thirty minutes. Getting worse.",
+     note:"Effect=7.62 freq=56",tip:"how longはEffect7.62。発症時間確認の核心"},
+    {name:"Pain Scale",nameJa:"呼吸困難度評価",hint:"呼吸の苦しさの程度を聞く",
+     target:"How bad is your breathing right now?",keywords:["bad","breathing"],threshold:0.8,
+     patientResponse:"[gasping] About a seven.",
+     note:"Effect=7.69 freq=41",tip:"how badを呼吸に応用。6語"},
+    {name:"History",nameJa:"病歴聴取",hint:"喘息の既往を確認する",
+     target:"Do you have asthma?",keywords:["asthma"],threshold:1.0,
+     patientResponse:"Yes, I use an inhaler. Used it twice — not helping today.",
+     note:"Effect=6.50 freq=55",tip:"4語の最短病歴確認。喘息は呼吸困難の最重要既往"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"酸素飽和度を測ることを伝える",
+     target:"Let me check your oxygen level.",keywords:["oxygen","level"],threshold:0.8,
+     patientResponse:"[nods] Okay. Please be quick.",
+     note:"Effect=7.10 freq=48",tip:"oxygen levelはEffect7.10。5語の核心評価表現"},
+    {name:"Instructions",nameJa:"指示",hint:"ゆっくり呼吸するよう指示する",
+     target:"Breathe slowly. In through your nose.",keywords:["breathe","nose"],threshold:0.8,
+     patientResponse:"[concentrating] In through the nose... okay...",
+     note:"Effect=6.30 freq=38",tip:"2短文。最初の文4語で即伝わる"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"酸素投与しながら安心させる",
+     target:"I'm putting oxygen on you now.",keywords:["oxygen","now"],threshold:0.8,
+     patientResponse:"[breathing slightly easier] Thank you. That helps.",
+     note:"Effect=6.20 freq=35",tip:"6語。何をしているか具体的に伝える"},
     {name:"Transport",nameJa:"搬送",hint:"病院へ搬送することを伝える",
-     target:"We're going to the hospital now. Keep taking slow deep breaths.",keywords:["hospital","breathe","slow"],threshold:0.5,
-     patientResponse:"[nods] Okay, let's go. I can't keep going like this.",
-     note:"Effect=5.90 freq=52",tip:"搬送中も呼吸指示を継続"}
+     target:"We're going to the hospital now.",keywords:["hospital","now"],threshold:0.8,
+     patientResponse:"[nods] Let's go. I can't keep going like this.",
+     note:"Effect=5.90 freq=52",tip:"6語。搬送告知の最短表現"}
   ]
 },
 {
@@ -579,38 +604,38 @@ const SCENARIOS = [
     situation:"A 72-year-old male sitting on the floor. He reports sudden dizziness and cannot stand without falling.",
     situationJa:"床に座り込んでいる72歳男性。突然のめまいで立てない状態。"},
   phases:[
-    {name:"Initial Contact",nameJa:"初期接触",hint:"意識を確認し、安全な姿勢を保つ",
-     target:"Can you hear me? Stay where you are, don't try to stand.",keywords:["hear","stand","stay"],threshold:0.5,
-     patientResponse:"Yeah, I hear you. The whole room is spinning — I tried to stand up and I just went straight down.",
-     note:"Effect=6.41 freq=53",tip:"don't moveと組み合わせると安全確保に有効"},
-    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"めまいの内容と症状を確認する",
-     target:"Tell me what happened. Are you feeling dizzy?",keywords:["tell","dizzy","feeling"],threshold:0.6,
-     patientResponse:"The room just started spinning out of nowhere. I went to get up and completely lost my balance — grabbed the wall but went down anyway.",
-     note:"Effect=6.61 freq=114",tip:"tell meで情報収集を開始"},
-    {name:"Pain Scale",nameJa:"症状評価",hint:"めまいの程度を0〜10で評価する",
-     target:"On a scale of zero to ten, how bad is the dizziness?",keywords:["scale","ten","bad","dizzy"],threshold:0.5,
-     patientResponse:"I'd put it at a seven. My stomach's turning too — I feel like I might throw up.",
-     note:"Effect=7.69 freq=41",tip:"めまいにもスケール評価が有効"},
-    {name:"History",nameJa:"病歴聴取",hint:"いつ始まったか・既往歴・薬を確認する",
-     target:"When did this start? Do you have any medical history?",shortTarget:"When did this start?",keywords:["when","start"],threshold:0.6,
-     patientResponse:"About an hour ago, I'd say. I've had high blood pressure for years — I take medication for it every morning.",
-     note:"Effect=6.92 freq=68",tip:"medical historyは標準的SAMPLE表現"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"血圧・脈拍を測ることを伝える",
-     target:"Let me check your blood pressure. Can you squeeze my hand?",keywords:["blood","pressure","squeeze","hand"],threshold:0.5,
-     patientResponse:"[extends hand carefully] Sure, like this? The room's still moving around on me.",
-     note:"Effect=9.02 freq=17",tip:"squeeze myはEffect最高値の神経評価表現"},
-    {name:"Instructions",nameJa:"指示",hint:"動かないで横になるよう指示する",
-     target:"Please stay still. I need you to lie back slowly.",keywords:["stay","still","lie","back"],threshold:0.5,
-     patientResponse:"Okay, I'll stay put. I really don't want to fall again, to be honest.",
-     note:"Effect=6.30 freq=38",tip:"stay still + lie backの組み合わせ"},
-    {name:"Reassurance",nameJa:"安心づけ",hint:"対応していることを伝え安心させる",
-     target:"Don't worry, we're going to take good care of you.",keywords:["worry","care","good"],threshold:0.5,
-     patientResponse:"I really appreciate that. I just hope it's not something serious.",
-     note:"Effect=6.10 freq=40",tip:"don't worryは安心づけの定番"},
-    {name:"Transport",nameJa:"搬送",hint:"ストレッチャーで搬送することを伝える",
-     target:"We're going to put you on the stretcher and take you to the hospital.",keywords:["stretcher","hospital","take"],threshold:0.5,
-     patientResponse:"Alright. Just take it easy on the bumps, okay?",
-     note:"Effect=5.90 freq=52",tip:"stretcher使用を事前に告知する"}
+    {name:"Initial Contact",nameJa:"初期接触",hint:"意識を確認し、立ち上がらないよう伝える",
+     target:"Can you hear me? Don't stand up.",keywords:["hear","stand"],threshold:0.8,
+     patientResponse:"Yeah I hear you. The whole room is spinning — I went straight down.",
+     note:"Effect=6.41 freq=53",tip:"5語。立ち上がり禁止は転倒防止の最重要指示"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"めまいがしているか確認する",
+     target:"Are you feeling dizzy?",keywords:["dizzy","feeling"],threshold:0.8,
+     patientResponse:"Yes, everything's spinning. I lost my balance completely.",
+     note:"Effect=6.61 freq=114",tip:"4語の最短主訴確認"},
+    {name:"Pain Scale",nameJa:"症状評価",hint:"めまいの程度を聞く",
+     target:"How bad is the dizziness?",keywords:["bad","dizzy"],threshold:0.8,
+     patientResponse:"About a seven. My stomach's turning too.",
+     note:"Effect=7.69 freq=41",tip:"5語。スケール評価の最短形"},
+    {name:"History",nameJa:"病歴聴取",hint:"いつ始まったか確認する",
+     target:"When did this start?",keywords:["when","start"],threshold:0.8,
+     patientResponse:"About an hour ago. I have high blood pressure — I take pills for it.",
+     note:"Effect=6.92 freq=68",tip:"4語。発症時刻確認の最短形"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"握力で神経評価を行う",
+     target:"Can you squeeze my hand?",keywords:["squeeze","hand"],threshold:0.8,
+     patientResponse:"[extends hand] Sure, like this? Room's still moving on me.",
+     note:"Effect=9.02 freq=17",tip:"squeeze myはEffect最高値9.02。5語"},
+    {name:"Instructions",nameJa:"指示",hint:"横になってじっとするよう指示する",
+     target:"Stay still. Lie back slowly.",keywords:["stay","still","lie"],threshold:0.6,
+     patientResponse:"Okay. I don't want to fall again.",
+     note:"Effect=6.30 freq=38",tip:"2短文5語。stay still + lie backの組み合わせ"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"安心させる",
+     target:"Don't worry. We've got you.",keywords:["worry"],threshold:1.0,
+     patientResponse:"I appreciate that. I hope it's nothing serious.",
+     note:"Effect=6.10 freq=40",tip:"4語。don't worryは北米で最も自然な安心表現"},
+    {name:"Transport",nameJa:"搬送",hint:"病院へ搬送することを伝える",
+     target:"We're taking you to the hospital.",keywords:["hospital","taking"],threshold:0.8,
+     patientResponse:"Alright. Easy on the bumps, okay?",
+     note:"Effect=5.90 freq=52",tip:"6語の標準搬送告知"}
   ]
 },
 {
@@ -620,38 +645,38 @@ const SCENARIOS = [
     situation:"A 34-year-old female with sudden onset severe headache. She describes it as the worst headache of her life.",
     situationJa:"突然の激しい頭痛を訴える34歳女性。「人生最悪の頭痛」と表現。くも膜下出血を疑う。"},
   phases:[
-    {name:"Initial Contact",nameJa:"初期接触",hint:"意識・反応を確認する",
-     target:"Can you hear me? Open your eyes for me.",keywords:["hear","open","eyes"],threshold:0.6,
-     patientResponse:"Yeah, I can hear you. Oh my God, my head is absolutely killing me right now.",
-     note:"Effect=6.41 freq=53",tip:"open your eyesは意識評価の重要表現"},
-    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"頭痛の場所と性質を確認する",
-     target:"Tell me about the pain. Where exactly does your head hurt?",keywords:["tell","pain","head","hurt"],threshold:0.5,
-     patientResponse:"Mostly the back of my head, but it's radiating everywhere. It was like a thunderclap — just hit me out of nowhere.",
-     note:"Effect=6.61 freq=114",tip:"where exactlyで部位特定"},
-    {name:"Pain Scale",nameJa:"痛みの評価",hint:"痛みを0〜10で評価する",
-     target:"On a scale of zero to ten, how bad is the headache?",keywords:["scale","ten","bad","headache"],threshold:0.5,
-     patientResponse:"It's a ten, no question. I've had migraines before but this is completely different — nothing like this.",
-     note:"Effect=7.69 freq=41",tip:"10点は重篤なサインの可能性"},
-    {name:"History",nameJa:"病歴聴取",hint:"いつ始まったか・以前にもあったか確認する",
-     target:"When did this start? Have you had headaches like this before?",shortTarget:"When did this start?",keywords:["when","start"],threshold:0.6,
-     patientResponse:"About thirty minutes ago. And no, I've never had anything like this. I've had headaches, sure, but this just hit me all at once.",
-     note:"Effect=6.92 freq=68",tip:"突然発症の確認は重要"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"神経学的評価（筋力・瞳孔）を行う",
-     target:"Let me look at your eyes. Can you squeeze my hands?",keywords:["look","eyes","squeeze","hands"],threshold:0.5,
-     patientResponse:"[Cooperates] Okay, like this?",
-     note:"Effect=9.02 freq=17",tip:"look at + squeeze myの神経評価セット"},
-    {name:"Instructions",nameJa:"指示",hint:"安静にするよう指示する",
-     target:"Try to keep still. Don't move your head.",keywords:["still","move","head"],threshold:0.6,
-     patientResponse:"Okay, I'll try. Is it serious?",
-     note:"Effect=6.30 freq=38",tip:"頭部固定は神経系疾患で重要"},
-    {name:"Reassurance",nameJa:"安心づけ",hint:"対応中であることを伝え安心させる",
-     target:"You're in good hands. I'm right here with you.",keywords:["hands","right","here"],threshold:0.6,
+    {name:"Initial Contact",nameJa:"初期接触",hint:"意識と目の開きを確認する",
+     target:"Can you hear me? Open your eyes.",keywords:["hear","eyes"],threshold:0.8,
+     patientResponse:"Yeah — my head is absolutely killing me right now.",
+     note:"Effect=6.41 freq=53",tip:"5語。open your eyesで意識・GCS同時評価"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"頭痛の場所を確認する",
+     target:"Where does your head hurt?",keywords:["head","hurt"],threshold:0.8,
+     patientResponse:"Mostly the back. It hit me like a thunderclap — out of nowhere.",
+     note:"Effect=6.61 freq=114",tip:"5語。whereで部位を直接確認"},
+    {name:"Pain Scale",nameJa:"痛みの評価",hint:"頭痛の程度を聞く",
+     target:"How bad is the headache?",keywords:["bad","headache"],threshold:0.8,
+     patientResponse:"Ten. I've had migraines — this is completely different.",
+     note:"Effect=7.69 freq=41",tip:"5語。10点はくも膜下出血の重要サイン"},
+    {name:"History",nameJa:"病歴聴取",hint:"いつ始まったか確認する",
+     target:"When did this start?",keywords:["when","start"],threshold:0.8,
+     patientResponse:"About thirty minutes ago. Hit me all at once.",
+     note:"Effect=6.92 freq=68",tip:"4語。thunderclap headacheの確認に直結"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"目線と握力を確認する",
+     target:"Look at me. Can you squeeze my hands?",keywords:["look","squeeze","hands"],threshold:0.6,
+     patientResponse:"[cooperates] Okay, like this?",
+     note:"Effect=9.02 freq=17",tip:"look at + squeeze my。神経評価の2核心表現"},
+    {name:"Instructions",nameJa:"指示",hint:"頭を動かさないよう指示する",
+     target:"Don't move your head.",keywords:["move","head"],threshold:0.8,
+     patientResponse:"Okay. Is it serious?",
+     note:"Effect=6.30 freq=38",tip:"4語。頭部固定はくも膜下出血で最重要指示"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"そばにいることを伝える",
+     target:"I'm right here with you.",keywords:["right","here"],threshold:0.8,
      patientResponse:"Please don't leave me.",
-     note:"Effect=6.85 freq=44",tip:"I'm right hereは存在を示す重要表現"},
-    {name:"Transport",nameJa:"搬送",hint:"病院へ搬送することを伝える",
-     target:"We need to take you to the hospital right now.",keywords:["hospital","take","now"],threshold:0.6,
+     note:"Effect=6.85 freq=44",tip:"5語。存在感を示す重要安心表現"},
+    {name:"Transport",nameJa:"搬送",hint:"今すぐ病院へ搬送することを伝える",
+     target:"We're taking you to the hospital right now.",keywords:["hospital","now"],threshold:0.8,
      patientResponse:"Okay, please hurry.",
-     note:"Effect=5.90 freq=52",tip:"right nowで緊急性を伝える"}
+     note:"Effect=5.90 freq=52",tip:"7語。right nowで緊急性を明示"}
   ]
 },
 {
@@ -662,37 +687,37 @@ const SCENARIOS = [
     situationJa:"52歳男性。突然の激しい腰背部痛が腹部に放散。高血圧の既往あり。解離性大動脈瘤を疑う。"},
   phases:[
     {name:"Initial Contact",nameJa:"初期接触",hint:"意識と反応を確認する",
-     target:"Can you hear me? Stay still, I'm here to help.",keywords:["hear","still","help"],threshold:0.6,
-     patientResponse:"Yes... please help me. The pain is unbearable.",
-     note:"Effect=6.41 freq=53",tip:"I'm here to helpは初期接触の安心フレーズ"},
-    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"痛みの場所と広がりを確認する",
-     target:"Tell me where the pain is. Does it go anywhere else?",keywords:["tell","pain","where","go"],threshold:0.5,
-     patientResponse:"My back and lower belly. It shoots down my legs.",
-     note:"Effect=6.61 freq=114",tip:"放散痛の確認は大動脈疾患で重要"},
-    {name:"Pain Scale",nameJa:"痛みの評価",hint:"痛みを0〜10で評価する",
-     target:"How bad is the pain right now, on a scale of zero to ten?",keywords:["bad","pain","scale","ten"],threshold:0.5,
-     patientResponse:"Ten! I've never felt anything like this.",
-     note:"Effect=7.69 freq=41",tip:"right nowで現在の状態を評価"},
-    {name:"History",nameJa:"病歴聴取",hint:"既往歴・薬・いつ始まったか確認する",
-     target:"Do you have high blood pressure? When did this start?",shortTarget:"Do you have high blood pressure?",keywords:["blood","pressure"],threshold:0.6,
-     patientResponse:"Yes, high blood pressure. Started suddenly, maybe an hour ago.",
-     note:"Effect=7.21 freq=71",tip:"高血圧既往と突然発症の組み合わせは大動脈疾患を示唆"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"両腕の血圧を測ることを伝える",
-     target:"I need to check your blood pressure in both arms.",keywords:["blood","pressure","arms","both"],threshold:0.5,
+     target:"Can you hear me?",keywords:["hear"],threshold:1.0,
+     patientResponse:"Yes — please help me. The pain is unbearable.",
+     note:"Effect=6.41 freq=53",tip:"3語。意識確認の最短形"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"痛みの場所を確認する",
+     target:"Tell me where the pain is.",keywords:["tell","pain","where"],threshold:0.6,
+     patientResponse:"My back and belly. It shoots down my legs.",
+     note:"Effect=6.61 freq=114",tip:"6語。tell me + whereで部位確認"},
+    {name:"Pain Scale",nameJa:"痛みの評価",hint:"痛みの程度を聞く",
+     target:"How bad is the pain?",keywords:["bad","pain"],threshold:0.8,
+     patientResponse:"Ten. I've never felt anything like this.",
+     note:"Effect=7.69 freq=41",tip:"5語。how badの最短形"},
+    {name:"History",nameJa:"病歴聴取",hint:"高血圧の既往を確認する",
+     target:"Do you have high blood pressure?",keywords:["blood","pressure"],threshold:0.8,
+     patientResponse:"Yes. Started suddenly, about an hour ago.",
+     note:"Effect=7.21 freq=71",tip:"6語。高血圧＋突然発症は大動脈解離の重要所見"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"血圧を測ることを伝える",
+     target:"Let me check your blood pressure.",keywords:["blood","pressure"],threshold:0.8,
      patientResponse:"Okay. Will that help?",
-     note:"Effect=7.21 freq=71",tip:"左右差の確認は大動脈解離の評価"},
-    {name:"Instructions",nameJa:"指示",hint:"動かないで横になるよう指示する",
-     target:"Please don't move. Lie back and stay very still.",keywords:["move","lie","still"],threshold:0.6,
-     patientResponse:"[Tries to comply] Okay... it hurts so much.",
-     note:"Effect=6.30 freq=38",tip:"安静が最重要の介入"},
-    {name:"Reassurance",nameJa:"安心づけ",hint:"対応中であることを伝える",
-     target:"We're taking good care of you. You're doing the right thing.",keywords:["care","good","right"],threshold:0.5,
+     note:"Effect=7.21 freq=71",tip:"5語。大動脈解離では左右差確認が重要"},
+    {name:"Instructions",nameJa:"指示",hint:"動かないよう指示する",
+     target:"Don't move. Stay very still.",keywords:["move","still"],threshold:0.8,
+     patientResponse:"Okay... it hurts so much.",
+     note:"Effect=6.30 freq=38",tip:"5語。安静が最重要介入"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"適切に対応していることを伝える",
+     target:"We're taking good care of you.",keywords:["care","good"],threshold:0.8,
      patientResponse:"Please hurry. I'm scared.",
-     note:"Effect=6.85 freq=44",tip:"doing the right thingで患者の協力を承認"},
+     note:"Effect=6.85 freq=44",tip:"6語。taking careはコーパス頻出の安心表現"},
     {name:"Transport",nameJa:"搬送",hint:"緊急搬送することを伝える",
-     target:"We're taking you to the hospital immediately.",keywords:["hospital","taking","immediately"],threshold:0.6,
+     target:"We're taking you to the hospital now.",keywords:["hospital","now"],threshold:0.8,
      patientResponse:"Okay, let's go.",
-     note:"Effect=5.90 freq=52",tip:"immediatelyで緊急性を明示"}
+     note:"Effect=5.90 freq=52",tip:"7語。標準搬送告知"}
   ]
 },
 {
@@ -702,38 +727,38 @@ const SCENARIOS = [
     situation:"A 67-year-old male found unresponsive. Bystanders report he suddenly collapsed. Blood sugar unknown.",
     situationJa:"突然倒れ意識消失した67歳男性。血糖値不明。脳血管障害・低血糖・痙攣を鑑別。"},
   phases:[
-    {name:"Initial Contact",nameJa:"初期接触",hint:"意識レベルを大声で確認する",
+    {name:"Initial Contact",nameJa:"初期接触",hint:"大声で意識・反応を確認する",
      target:"Can you hear me? Open your eyes.",keywords:["hear","eyes"],threshold:0.8,
-     patientResponse:"[Groans] ...wha... where am I?",
-     note:"Effect=6.41 freq=53",tip:"意識障害ではwhat is your nameで応答確認"},
-    {name:"Chief Complaint",nameJa:"状況確認",hint:"家族・目撃者に何があったか確認する（患者以外に問診）",
-     target:"What happened to him? Did he fall?",keywords:["happened","fall"],threshold:0.8,
-     patientResponse:"[Bystander] He just fell down suddenly. I don't know if he had a seizure.",
-     note:"Effect=6.61 freq=114",tip:"意識障害では目撃者への問診が重要"},
-    {name:"Pain Scale",nameJa:"反応評価",hint:"痛みへの反応で意識レベルを評価する",
-     target:"Can you tell me your name?",keywords:["name","tell"],threshold:0.8,
-     patientResponse:"[Confused] My name... David. I'm... home?",
-     note:"Effect=7.69 freq=41",tip:"見当識確認がGCS評価の一部"},
-    {name:"History",nameJa:"病歴聴取",hint:"糖尿病・てんかん・薬を確認する",
+     patientResponse:"[groans] ...wha... where am I?",
+     note:"Effect=6.41 freq=53",tip:"5語。open your eyesでGCS開眼を同時評価"},
+    {name:"Chief Complaint",nameJa:"状況確認",hint:"目撃者に何があったか確認する",
+     target:"What happened to him?",keywords:["happened"],threshold:1.0,
+     patientResponse:"[Bystander] He just collapsed suddenly. I don't know if he had a seizure.",
+     note:"Effect=6.61 freq=114",tip:"4語。目撃者への問診は意識障害で必須"},
+    {name:"Pain Scale",nameJa:"反応評価",hint:"名前を聞いて見当識を確認する",
+     target:"What is your name?",keywords:["name"],threshold:1.0,
+     patientResponse:"[confused] My name... David. I'm at home?",
+     note:"Effect=7.69 freq=41",tip:"4語。見当識確認の最短形。GCS言語評価に直結"},
+    {name:"History",nameJa:"病歴聴取",hint:"糖尿病の既往を目撃者に確認する",
      target:"Does he have diabetes?",keywords:["diabetes"],threshold:1.0,
-     patientResponse:"[Bystander] Yes, he's diabetic. He takes insulin.",
-     note:"Effect=6.92 freq=68",tip:"糖尿病は意識障害の重要な原因"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"血糖値と神経学的評価を行う",
-     target:"I'm going to check his blood sugar and look at his eyes.",keywords:["blood","sugar","eyes","check"],threshold:0.5,
-     patientResponse:"[Patient groans; bystander nods]",
-     note:"Effect=7.21 freq=71",tip:"blood sugarの確認は低血糖の診断に直結"},
-    {name:"Instructions",nameJa:"指示",hint:"回復体位をとり動かさないよう指示する",
-     target:"Keep him on his side. Don't let him move.",keywords:["side","move","keep"],threshold:0.6,
+     patientResponse:"[Bystander] Yes, he's diabetic. Takes insulin.",
+     note:"Effect=6.92 freq=68",tip:"4語。低血糖は意識障害の最重要原因"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"血糖値を測ることを伝える",
+     target:"I'm checking his blood sugar now.",keywords:["blood","sugar"],threshold:0.8,
+     patientResponse:"[bystander nods] Is it low?",
+     note:"Effect=7.21 freq=71",tip:"6語。blood sugarは低血糖診断に直結"},
+    {name:"Instructions",nameJa:"指示",hint:"回復体位をとるよう指示する",
+     target:"Keep him on his side.",keywords:["side","keep"],threshold:0.8,
      patientResponse:"[Bystander] Okay, I've got him.",
-     note:"Effect=6.30 freq=38",tip:"回復体位（on his side）で気道確保"},
-    {name:"Reassurance",nameJa:"安心づけ",hint:"対応していることを目撃者にも伝える",
-     target:"We're taking care of him now. He's in good hands.",keywords:["care","now","hands"],threshold:0.6,
+     note:"Effect=6.30 freq=38",tip:"5語。回復体位で気道確保"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"目撃者にも安心づけを行う",
+     target:"He's in good hands now.",keywords:["hands","good"],threshold:0.8,
      patientResponse:"[Bystander] Thank you for coming so fast.",
-     note:"Effect=6.85 freq=44",tip:"目撃者にも安心づけが必要"},
+     note:"Effect=6.85 freq=44",tip:"5語。目撃者への安心表現"},
     {name:"Transport",nameJa:"搬送",hint:"病院へ搬送することを告知する",
-     target:"We need to take him to the hospital right away.",keywords:["hospital","take","away"],threshold:0.6,
+     target:"We need to take him to the hospital.",keywords:["hospital","take"],threshold:0.8,
      patientResponse:"[Bystander] Should I come too?",
-     note:"Effect=5.90 freq=52",tip:"right awayで緊急性を明示"}
+     note:"Effect=5.90 freq=52",tip:"7語。搬送告知の標準表現"}
   ]
 },
 {
@@ -744,37 +769,37 @@ const SCENARIOS = [
     situationJa:"激しい腹痛を訴える29歳女性。顔色不良・冷汗あり。妊娠の可能性を含め鑑別が必要。"},
   phases:[
     {name:"Initial Contact",nameJa:"初期接触",hint:"意識と反応を確認する",
-     target:"Can you hear me? My name is here to help you.",keywords:["hear","help"],threshold:0.8,
-     patientResponse:"Yes! Please help me, it hurts so bad.",
-     note:"Effect=6.41 freq=53",tip:"まず反応を確認してから問診へ"},
-    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"腹痛の場所と性質を確認する",
-     target:"Tell me where it hurts. Point to the pain.",keywords:["tell","hurts","pain"],threshold:0.6,
-     patientResponse:"[Points to lower right] Here, it's sharp and constant.",
-     note:"Effect=6.61 freq=114",tip:"point toで部位を具体的に確認"},
-    {name:"Pain Scale",nameJa:"痛みの評価",hint:"痛みを0〜10で評価する",
-     target:"On a scale of zero to ten, how bad is the pain?",keywords:["scale","ten","bad","pain"],threshold:0.5,
-     patientResponse:"Nine. It started mild but got much worse.",
-     note:"Effect=7.69 freq=41",tip:"痛みの変化も確認する"},
-    {name:"History",nameJa:"病歴聴取",hint:"最終月経・妊娠の可能性・薬を確認する",
-     target:"When did this start? Could you be pregnant?",shortTarget:"Could you be pregnant?",keywords:["pregnant"],threshold:1.0,
-     patientResponse:"A few hours ago. I... I could be pregnant. I'm not sure.",
-     note:"Effect=6.92 freq=68",tip:"女性の腹痛では妊娠の確認が必須"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"腹部触診を行うことを伝える",
-     target:"I need to feel your belly. Tell me if it hurts more.",keywords:["feel","belly","hurts"],threshold:0.5,
-     patientResponse:"[Winces] Ow! Yes, right there.",
-     note:"Effect=7.21 freq=71",tip:"tell me if it hurtで患者に評価参加を促す"},
-    {name:"Instructions",nameJa:"指示",hint:"楽な姿勢をとるよう指示する",
-     target:"Try to relax your muscles. Take a slow breath.",keywords:["relax","breath","slow"],threshold:0.5,
+     target:"Can you hear me?",keywords:["hear"],threshold:1.0,
+     patientResponse:"Yes! Please help me — it hurts so bad.",
+     note:"Effect=6.41 freq=53",tip:"3語。意識確認の最短形"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"どこが痛いか確認する",
+     target:"Where does it hurt?",keywords:["hurt","where"],threshold:0.8,
+     patientResponse:"[points to lower right] Here — sharp and constant.",
+     note:"Effect=6.61 freq=114",tip:"4語。whereで部位を直接確認"},
+    {name:"Pain Scale",nameJa:"痛みの評価",hint:"痛みの程度を聞く",
+     target:"How bad is the pain?",keywords:["bad","pain"],threshold:0.8,
+     patientResponse:"Nine. Started mild but got much worse.",
+     note:"Effect=7.69 freq=41",tip:"5語。how badの最短形"},
+    {name:"History",nameJa:"病歴聴取",hint:"妊娠の可能性を確認する（女性腹痛で必須）",
+     target:"Could you be pregnant?",keywords:["pregnant"],threshold:1.0,
+     patientResponse:"I... I could be. I'm not sure.",
+     note:"Effect=6.92 freq=68",tip:"4語。女性腹痛では必須確認。異所性妊娠の鑑別"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"お腹を触診することを伝える",
+     target:"I need to feel your belly.",keywords:["feel","belly"],threshold:0.8,
+     patientResponse:"[winces] Ow — yes, right there.",
+     note:"Effect=7.21 freq=71",tip:"5語。bellyは北米口語で自然な表現"},
+    {name:"Instructions",nameJa:"指示",hint:"力を抜いてゆっくり息をするよう指示する",
+     target:"Try to relax. Take a slow breath.",keywords:["relax","breath"],threshold:0.8,
      patientResponse:"I'm trying... it's so hard.",
-     note:"Effect=6.30 freq=38",tip:"筋緊張を和らげることで評価しやすくなる"},
-    {name:"Reassurance",nameJa:"安心づけ",hint:"対応していることを伝える",
-     target:"I'm right here. We're going to take good care of you.",keywords:["right","here","care"],threshold:0.6,
+     note:"Effect=6.30 freq=38",tip:"2短文6語。腹部触診前の緊張緩和に重要"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"そばにいることを伝える",
+     target:"I'm right here.",keywords:["right","here"],threshold:1.0,
      patientResponse:"Please don't leave me. I'm scared.",
-     note:"Effect=6.85 freq=44",tip:"I'm right hereは存在感を示す重要表現"},
-    {name:"Transport",nameJa:"搬送",hint:"搬送することを告知する",
-     target:"We're taking you to the hospital now. Try to stay still.",keywords:["hospital","now","still"],threshold:0.5,
+     note:"Effect=6.85 freq=44",tip:"3語の最短安心表現。I'm right hereはEffect高位"},
+    {name:"Transport",nameJa:"搬送",hint:"病院へ搬送することを伝える",
+     target:"We're taking you to the hospital now.",keywords:["hospital","now"],threshold:0.8,
      patientResponse:"Okay. Will I be okay?",
-     note:"Effect=5.90 freq=52",tip:"stay stillで安全搬送を確保"}
+     note:"Effect=5.90 freq=52",tip:"7語。標準搬送告知"}
   ]
 },
 {
@@ -785,37 +810,37 @@ const SCENARIOS = [
     situationJa:"3時間持続する嘔吐の41歳男性。脱水症状あり。食中毒・消化器疾患などを鑑別。"},
   phases:[
     {name:"Initial Contact",nameJa:"初期接触",hint:"意識と反応を確認する",
-     target:"How are you feeling right now?",keywords:["feeling","now"],threshold:0.8,
-     patientResponse:"I hear you. I feel terrible. I keep throwing up.",
-     note:"Effect=6.41 freq=53",tip:"how are you feelingで全体的状態を確認"},
-    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"嘔吐の回数・内容を確認する",
-     target:"Tell me what happened. How many times have you thrown up?",keywords:["tell","thrown","times"],threshold:0.5,
-     patientResponse:"Maybe ten or fifteen times in the last three hours. It won't stop.",
-     note:"Effect=6.61 freq=114",tip:"回数・持続時間の確認が重要"},
-    {name:"Pain Scale",nameJa:"症状評価",hint:"吐き気の程度を0〜10で評価する",
-     target:"On a scale of zero to ten, how bad is the nausea?",keywords:["scale","ten","bad","nausea"],threshold:0.5,
+     target:"Can you hear me?",keywords:["hear"],threshold:1.0,
+     patientResponse:"Yeah. I feel terrible — I keep throwing up.",
+     note:"Effect=6.41 freq=53",tip:"3語。意識確認の最短形"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"嘔吐がいつから続いているか確認する",
+     target:"How long have you been vomiting?",keywords:["long","vomit"],threshold:0.8,
+     patientResponse:"About three hours. Maybe ten or fifteen times. It won't stop.",
+     note:"Effect=7.62 freq=56",tip:"6語。how longで持続時間を直接確認"},
+    {name:"Pain Scale",nameJa:"症状評価",hint:"吐き気の程度を聞く",
+     target:"How bad is the nausea?",keywords:["bad","nausea"],threshold:0.8,
      patientResponse:"About an eight. I feel so weak.",
-     note:"Effect=7.69 freq=41",tip:"nauseaにもscaleが有効"},
-    {name:"History",nameJa:"病歴聴取",hint:"最後に食べたもの・食べた時間を確認する",
+     note:"Effect=7.69 freq=41",tip:"5語。how badをnauseaに応用"},
+    {name:"History",nameJa:"病歴聴取",hint:"最後に食べた時間を確認する",
      target:"When did you last eat?",keywords:["last","eat"],threshold:0.8,
-     patientResponse:"I ate at a restaurant about six hours ago. Seafood.",
-     note:"Effect=9.21 freq=22",tip:"last eatはEffect第2位の重要表現"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"血圧・脈拍・皮膚の状態を確認する",
-     target:"Let me check your blood pressure and pulse.",keywords:["blood","pressure","pulse"],threshold:0.5,
-     patientResponse:"[Holds still] Is it low?",
-     note:"Effect=7.21 freq=71",tip:"脱水では血圧・脈拍の変化に注意"},
+     patientResponse:"About six hours ago. Seafood at a restaurant.",
+     note:"Effect=9.21 freq=22",tip:"5語。last eatはEffect9.21・第2位の最重要表現"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"血圧を測ることを伝える",
+     target:"Let me check your blood pressure.",keywords:["blood","pressure"],threshold:0.8,
+     patientResponse:"[holds still] Is it low?",
+     note:"Effect=7.21 freq=71",tip:"5語。脱水では血圧低下が重要所見"},
     {name:"Instructions",nameJa:"指示",hint:"横向きで安静にするよう指示する",
-     target:"Try to lie on your side. This will help if you need to be sick.",keywords:["lie","side","sick"],threshold:0.5,
+     target:"Lie on your side.",keywords:["lie","side"],threshold:0.8,
      patientResponse:"Okay... [shifts position]",
-     note:"Effect=6.30 freq=38",tip:"誤嚥防止のために側臥位が重要"},
+     note:"Effect=6.30 freq=38",tip:"4語。誤嚥防止の側臥位。北米で標準的な指示"},
     {name:"Reassurance",nameJa:"安心づけ",hint:"対応していることを伝える",
-     target:"We're going to take care of you. You'll feel better soon.",keywords:["care","feel","better"],threshold:0.5,
-     patientResponse:"Thank you... please help me.",
-     note:"Effect=6.85 freq=44",tip:"feel betterは回復を示唆する安心表現"},
-    {name:"Transport",nameJa:"搬送",hint:"病院で点滴を受けられることを伝える",
-     target:"We're taking you to the hospital. They'll give you fluids and medication.",keywords:["hospital","fluids","medication"],threshold:0.5,
+     target:"We're taking care of you.",keywords:["care","taking"],threshold:0.8,
+     patientResponse:"Thank you. Please help me.",
+     note:"Effect=6.85 freq=44",tip:"5語。taking careの最短安心表現"},
+    {name:"Transport",nameJa:"搬送",hint:"病院へ搬送することを伝える",
+     target:"We're taking you to the hospital now.",keywords:["hospital","now"],threshold:0.8,
      patientResponse:"Okay, thank you.",
-     note:"Effect=5.90 freq=52",tip:"具体的な治療を示すことで安心感を与える"}
+     note:"Effect=5.90 freq=52",tip:"7語。標準搬送告知"}
   ]
 },
 {
@@ -827,36 +852,36 @@ const SCENARIOS = [
   phases:[
     {name:"Initial Contact",nameJa:"初期接触",hint:"意識と反応を確認する",
      target:"Can you hear me?",keywords:["hear"],threshold:1.0,
-     patientResponse:"[Slurred] Yes... I'm Linda. Something's wrong with my face.",
-     note:"Effect=6.41 freq=53",tip:"名前の確認で意識・言語を同時評価"},
-    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"脱力の症状の場所と開始時間を確認する",
-     target:"Tell me what happened. Can you lift both arms?",keywords:["tell","lift","arms","both"],threshold:0.5,
-     patientResponse:"My right side feels weak. I can't lift my right arm properly.",
-     note:"Effect=6.61 freq=114",tip:"lift both armsはFASTの腕評価"},
-    {name:"Pain Scale",nameJa:"症状評価",hint:"脱力の程度を確認する",
+     patientResponse:"[slurred] Yes... I'm Linda. Something's wrong with my face.",
+     note:"Effect=6.41 freq=53",tip:"3語。意識確認の最短形"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"FAST：両腕を挙げるよう指示してFAST腕評価を行う",
+     target:"Can you lift both arms for me?",keywords:["lift","arms"],threshold:0.8,
+     patientResponse:"My right arm feels weak. I can't lift it properly.",
+     note:"Effect=6.61 freq=114",tip:"7語。FASTの腕評価。lift both armsが直接的"},
+    {name:"Pain Scale",nameJa:"症状評価",hint:"握力で神経学的評価を行う",
      target:"Can you squeeze my hand?",keywords:["squeeze","hand"],threshold:0.8,
-     patientResponse:"[Tries to squeeze] I can barely... squeeze at all.",
-     note:"Effect=9.02 freq=17",tip:"squeeze myはEffect最高値の神経評価"},
-    {name:"History",nameJa:"病歴聴取",hint:"発症時刻を確認する（tPA治療の判断のため）",
+     patientResponse:"[tries] I can barely squeeze at all.",
+     note:"Effect=9.02 freq=17",tip:"5語。squeeze myはEffect最高値9.02"},
+    {name:"History",nameJa:"病歴聴取",hint:"いつ始まったか確認する（tPA適応判断に直結）",
      target:"When did this start?",keywords:["when","start"],threshold:0.8,
-     patientResponse:"About forty-five minutes ago. I was watching TV and it just happened.",
-     note:"Effect=6.92 freq=68",tip:"発症時刻はtPA適応判断に直結"},
-    {name:"Physical Assessment",nameJa:"身体評価",hint:"FAST評価（顔・腕・言語）を行う",
-     target:"Can you smile for me? Show me your teeth. Now look at me.",keywords:["smile","teeth","look"],threshold:0.5,
-     patientResponse:"[Smiles asymmetrically] Is my face drooping?",
-     note:"Effect=7.36 freq=18",tip:"FASTの顔評価：笑顔の非対称を確認"},
-    {name:"Instructions",nameJa:"指示",hint:"動かないで横になるよう指示する",
-     target:"Please don't move. Lie still and keep your head straight.",keywords:["move","still","head","straight"],threshold:0.5,
+     patientResponse:"About forty-five minutes ago. I was watching TV.",
+     note:"Effect=6.92 freq=68",tip:"4語。発症時刻確認はtPA適応の最重要情報"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"FAST：笑顔を作るよう指示して顔面麻痺を確認する",
+     target:"Can you smile for me?",keywords:["smile"],threshold:1.0,
+     patientResponse:"[smiles asymmetrically] Is my face drooping?",
+     note:"Effect=7.36 freq=18",tip:"5語。FASTの顔評価。最短で非対称を確認"},
+    {name:"Instructions",nameJa:"指示",hint:"頭を動かさないよう指示する",
+     target:"Don't move. Keep your head still.",keywords:["move","head","still"],threshold:0.6,
      patientResponse:"Okay... please hurry. I'm scared.",
-     note:"Effect=6.30 freq=38",tip:"脳卒中では頭部を正中位に保つ"},
-    {name:"Reassurance",nameJa:"安心づけ",hint:"早期に病院に行けることを伝える",
-     target:"You did the right thing calling us. You're in good hands now.",keywords:["right","hands","good"],threshold:0.5,
+     note:"Effect=6.30 freq=38",tip:"6語。脳卒中では頭部正中位が重要"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"安心させる",
+     target:"You're in good hands.",keywords:["hands","good"],threshold:0.8,
      patientResponse:"Please hurry, I need help.",
-     note:"Effect=6.85 freq=44",tip:"did the right thingで通報を肯定する"},
-    {name:"Transport",nameJa:"搬送",hint:"脳卒中センターに搬送することを伝える",
-     target:"We're taking you to the stroke center now. Time is very important.",keywords:["stroke","center","time","important"],threshold:0.5,
-     patientResponse:"Okay, I understand. Please go fast.",
-     note:"Effect=5.90 freq=52",tip:"Time is importantで脳卒中の緊急性を伝える"}
+     note:"Effect=6.85 freq=44",tip:"4語。最短安心表現"},
+    {name:"Transport",nameJa:"搬送",hint:"病院へ緊急搬送することを伝える",
+     target:"We're taking you to the hospital now.",keywords:["hospital","now"],threshold:0.8,
+     patientResponse:"Okay. Please go fast.",
+     note:"Effect=5.90 freq=52",tip:"7語。脳卒中ではtime is brainのため迅速搬送"}
   ]
 }
 ];
@@ -1068,6 +1093,32 @@ function calcMatchScore(recognizedText, keywords, threshold) {
 }
 
 /* =====================================================
+   WORD-LEVEL RECOGNITION ANALYSIS
+   ===================================================== */
+function analyzeWordRecognition(transcript, targetPhrase, keywords) {
+  const recWords = transcript.toLowerCase().replace(/[^a-z\s]/g,'').split(/\s+/).filter(w=>w);
+  const targetWords = targetPhrase.toLowerCase().replace(/[^a-z\s']/g,'').split(/\s+/).filter(w=>w);
+  const kwSet = new Set((keywords||[]).map(k=>k.toLowerCase()));
+  return targetWords.map(word => {
+    const clean = word.replace(/[^a-z]/g,'');
+    const isKeyword = kwSet.has(clean);
+    const recognized = recWords.some(rw => fuzzyWordMatch(rw, clean));
+    return { word: clean, recognized, isKeyword };
+  });
+}
+
+function renderWordBreakdown(analysis) {
+  document.getElementById('breakdown-label').textContent = '単語別 認識チェック（★ = 採点対象キーワード）';
+  document.getElementById('word-breakdown').innerHTML = analysis.map(({word, recognized, isKeyword}) => {
+    const stateCls = recognized ? 'recognized' : 'missed';
+    const kwCls    = isKeyword  ? ' keyword'   : '';
+    const icon     = recognized ? '✓' : '✗';
+    const kwMark   = isKeyword  ? '<span class="chip-kw">★</span>' : '';
+    return `<span class="word-chip ${stateCls}${kwCls}">${icon} ${word}${kwMark}</span>`;
+  }).join('');
+}
+
+/* =====================================================
    APP STATE
    ===================================================== */
 let state = {
@@ -1210,6 +1261,8 @@ function clearResult() {
   document.getElementById('result-status').textContent = '';
   document.getElementById('result-status').className = 'result-status';
   document.getElementById('result-tip').textContent = '';
+  document.getElementById('word-breakdown').innerHTML = '';
+  document.getElementById('breakdown-label').textContent = '';
 }
 
 function showResult(type, text) {
@@ -1230,6 +1283,11 @@ function processRecognition(transcript) {
 
   showResult('heard', transcript);
 
+  // Word-level analysis (always shown)
+  const wordAnalysis = analyzeWordRecognition(transcript, phase.target, phase.keywords);
+  renderWordBreakdown(wordAnalysis);
+  const missedWords = wordAnalysis.filter(w => !w.recognized).map(w => w.word);
+
   const micBtn = document.getElementById('mic-btn');
   if (success) {
     micBtn.classList.add('success');
@@ -1238,7 +1296,7 @@ function processRecognition(transcript) {
     document.getElementById('result-tip').textContent = `💡 ${phase.tip || phase.note}`;
 
     state.score++;
-    state.history.push({phase: phase.name, target: phase.target, recognized: transcript, success: true});
+    state.history.push({phase: phase.name, target: phase.target, recognized: transcript, success: true, missed: missedWords});
 
     addMessage('paramedic', transcript);
     setTimeout(() => {
@@ -1252,7 +1310,7 @@ function processRecognition(transcript) {
     showResult('status-fail', `⚠️ もう少し！キーワードを含めて話してみてください。(${Math.round(score*100)}%)`);
     document.getElementById('result-tip').textContent = `ヒント: 「${phase.keywords.join('」「')}」を含めて話してください`;
 
-    state.history.push({phase: phase.name, target: phase.target, recognized: transcript, success: false});
+    state.history.push({phase: phase.name, target: phase.target, recognized: transcript, success: false, missed: missedWords});
 
     if (state.attempts >= 2) {
       document.getElementById('btn-show').style.display = 'block';
@@ -1308,13 +1366,49 @@ function showComplete() {
   const total = sc.phases.length;
   document.getElementById('score-num').textContent = `${state.score} / ${total}`;
 
+  // Aggregate missed words across all failed attempts
+  const missedCount = {};
+  state.history.forEach(h => {
+    if (h.missed && h.missed.length > 0) {
+      h.missed.forEach(w => { missedCount[w] = (missedCount[w] || 0) + 1; });
+    }
+  });
+  const missedSorted = Object.entries(missedCount).sort((a,b) => b[1]-a[1]);
+  const maxCount = missedSorted.length > 0 ? missedSorted[0][1] : 1;
+
+  const missedSummaryEl = document.getElementById('missed-summary');
+  const missedListEl    = document.getElementById('missed-list');
+  if (missedSorted.length > 0) {
+    missedListEl.innerHTML = missedSorted.map(([word, count]) => {
+      const pct = Math.round((count / maxCount) * 100);
+      const label = count === 1 ? '1回 未認識' : `${count}回 未認識`;
+      return `<div class="missed-word-row">
+        <span class="missed-word-badge">${word}</span>
+        <div class="missed-word-bar-wrap">
+          <div class="missed-word-bar" style="width:${pct}%"></div>
+        </div>
+        <span class="missed-word-count">${label}</span>
+      </div>`;
+    }).join('');
+    missedSummaryEl.style.display = 'block';
+  } else {
+    missedSummaryEl.style.display = 'none';
+  }
+
   const exprList = document.getElementById('expr-list');
-  exprList.innerHTML = state.history.map(h =>
-    `<div class="expr-item">
+  exprList.innerHTML = state.history.map(h => {
+    const missedTags = (h.missed && h.missed.length > 0)
+      ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">${h.missed.map(w =>
+          `<span style="background:#fee2e2;color:#991b1b;border:1px solid #f87171;border-radius:10px;font-size:.7rem;padding:1px 7px">✗ ${w}</span>`
+        ).join('')}</div>`
+      : '';
+    return `<div class="expr-item">
       <span class="expr-check">${h.success ? '✅' : '⬜'}</span>
-      <span class="expr-text">${h.target}</span>
-    </div>`
-  ).join('');
+      <div style="flex:1">
+        <span class="expr-text">${h.target}</span>${missedTags}
+      </div>
+    </div>`;
+  }).join('');
 
   document.getElementById('btn-retry').onclick = retryScenario;
   showScreen('screen-complete');
