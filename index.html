@@ -356,7 +356,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit}
   </p>
   <div class="badge-row">
     <span class="badge">🎤 音声認識</span>
-    <span class="badge">9症候</span>
+    <span class="badge">10症候</span>
     <span class="badge">8フェーズ</span>
     <span class="badge">中学英語レベル</span>
     <span class="badge">多少の発音ミスOK</span>
@@ -882,6 +882,47 @@ const SCENARIOS = [
      target:"We're taking you to the hospital now.",keywords:["hospital","now"],threshold:0.8,
      patientResponse:"Okay. Please go fast.",
      note:"Effect=5.90 freq=52",tip:"7語。脳卒中ではtime is brainのため迅速搬送"}
+  ]
+},
+{
+  id:"general_fatigue", titleEn:"General Fatigue", titleJa:"全身倦怠感", icon:"😩",
+  color:"#7c3aed", lightColor:"#f5f3ff",
+  patient:{name:"Margaret Chen", age:72, gender:"F", avatarEn:"woman",
+    situation:"A 72-year-old female found barely able to move on her sofa. Her neighbor called 911 after she couldn't get up for over 24 hours. She appears pale and exhausted.",
+    situationJa:"自力で動けないほどの全身倦怠感を訴え、隣人が119番通報した72歳女性。24時間以上ソファから動けず。顔色不良・著明な倦怠感あり。"},
+  phases:[
+    {name:"Initial Contact",nameJa:"初期接触",hint:"患者の意識・反応を声で確認する",
+     target:"Can you hear me?",keywords:["hear"],threshold:1.0,
+     patientResponse:"Yes... I'm here. I just feel so tired, I can barely move.",
+     note:"Effect=6.41 freq=53",tip:"最重要の意識確認。コーパス頻出第3位"},
+    {name:"Chief Complaint",nameJa:"主訴聴取",hint:"どのくらい倦怠感が続いているか確認する",
+     target:"How long have you felt this?",keywords:["long","felt"],threshold:0.8,
+     patientResponse:"Since yesterday morning... I couldn't even get off the couch.",
+     note:"Effect=5.85 freq=36",tip:"how long have you feltはEffect5.85。持続時間確認の最短形"},
+    {name:"Severity",nameJa:"重症度評価",hint:"倦怠感の強さを0〜10で聞く",
+     target:"How bad is the fatigue?",keywords:["bad","fatigue"],threshold:0.8,
+     patientResponse:"About a seven or eight. I've never felt this drained before.",
+     note:"Effect=7.54 freq=54",tip:"how badはEffect7.54高スコア。fatigueで倦怠感を直接評価"},
+    {name:"History",nameJa:"随伴症状確認",hint:"発熱・悪寒などの随伴症状を確認する",
+     target:"Any fever or chills?",keywords:["fever"],threshold:1.0,
+     patientResponse:"I've had night sweats and maybe a low fever since last night.",
+     note:"Effect=4.20 freq=22",tip:"4語。感染・悪性腫瘍の鑑別に必須の随伴症状確認"},
+    {name:"Physical Assessment",nameJa:"身体評価",hint:"バイタルサインを確認する",
+     target:"Let me check your blood pressure.",keywords:["blood","pressure"],threshold:0.8,
+     patientResponse:"[extends arm] Of course. Is something seriously wrong?",
+     note:"Effect=7.22 freq=91",tip:"blood pressureはEffect7.22 freq=91。全症候共通の核心バイタル"},
+    {name:"Instructions",nameJa:"指示",hint:"安静を保つよう指示する",
+     target:"Stay still and rest.",keywords:["stay","still"],threshold:0.8,
+     patientResponse:"Okay. I'm just so exhausted I can't do much anyway.",
+     note:"Effect=7.88 freq=20",tip:"stay stillはEffect7.88。4語の最短指示"},
+    {name:"Reassurance",nameJa:"安心づけ",hint:"適切に対応していることを伝える",
+     target:"You're in good hands.",keywords:["hands","good"],threshold:0.8,
+     patientResponse:"Thank you. I was really scared to call for help.",
+     note:"Effect=6.85 freq=44",tip:"4語。最短の安心表現"},
+    {name:"Transport",nameJa:"搬送",hint:"病院へ搬送することを伝える",
+     target:"We're taking you to the hospital now.",keywords:["hospital","now"],threshold:0.8,
+     patientResponse:"Will they figure out what's wrong with me?",
+     note:"Effect=5.90 freq=52",tip:"7語。搬送告知の定型表現"}
   ]
 }
 ];
